@@ -1,0 +1,79 @@
+url = "https://www.workopolis.com/jobsearch/find-jobs?ak=Pay-per-click+&l=&job=wqaW_LB68sO1TxV77a8SJihr5MWEYINxJk56eSYIipdI_beYB6B3uA"
+
+# start the Selenium server
+rdriver <- remoteDriver(browserName  = "chrome", # browser name
+                        port = 4444L, # port number
+                        remoteServerAddr = "localhost", # chrome browser version
+)
+#open browser
+rdriver$open()
+
+# For navigating to the url
+rdriver$navigate(url)
+
+# Creating URL link corresponding to the first 17 pages
+base_url = "https://www.workopolis.com/jobsearch/find-jobs?ak=Pay-per-click+&l=&job=9f3HDlnQqCglf6GwbTd4aPCWfr7hBFWl4yt_U4inUmd5kuptel0IXA&pn="
+url_list <- c(url, paste0(base_url, as.character(seq(from=1, to=4, by=1))))
+
+# Looping through the URL list
+res <- list()
+for(i in 1:length(url_list)){
+  # Navigate to the URL
+  rdriver$navigate(url_list[i])
+  
+  # Store page source 
+  web_page <- rdriver$getPageSource(header = TRUE)[[1]] %>% read_html()
+  
+  #find the length
+  job_card <- web_page %>% html_nodes(".SerpJob")
+  
+  # Job title 
+  job_position <-sapply(job_card,function(x){
+    x %>% html_nodes(".SerpJob-titleLink")%>%
+    html_text()})%>%
+    sapply( function(x) ifelse(length(x) == 0, NA, x))
+    
+  # Data about company
+  company_name<-sapply(job_card,function(x){
+    x %>% html_nodes(".SerpJob-company span")%>%
+    html_text() })%>%
+    sapply( function(x) ifelse(length(x) == 0, NA, x))
+   
+  
+  # Location
+ company_location <- sapply(job_card,function(x){
+    x%>% html_nodes(".SerpJob-location span")%>%
+    html_text()})%>%
+    sapply( function(x) ifelse(length(x) == 0, NA, x))
+ 
+  
+  
+  # Data about job description
+ job_desc <- sapply(job_card, function(x){
+    x%>%html_nodes(".SerpJob-snippet")%>%
+    html_text()})%>%
+    sapply( function(x) ifelse(length(x) == 0, NA, x))
+  
+  # Data about salary (when indicated)
+  salary_hour <- sapply(job_card, function(x){
+    x%>%html_nodes(".SerpJob-snippet+ .SerpJob-properties span:nth-child(2)")%>%
+    html_text()})%>%
+    sapply( function(x) ifelse(length(x) == 0, NA, x))
+   
+  
+  # Job posts in the same format
+  final_df <- cbind(job_position,company_name,company_location,salary_hour,job_desc)
+  colnames(final_df) <- c("Job_position","company_name","company_location","salary_hour","job_desc")
+  res[[i]] <- final_df
+  
+  # Sleep 5 seconds, good practice for web scraping
+  Sys.sleep(5)
+}
+
+# Gather all the job post in a tibble
+final_df <- as_tibble(do.call("rbind", res))
+
+write.csv(final_df,"E:\\Data science work experience project\\workopolis-pay-per-click.csv", row.names = FALSE)
+
+# For closing the browser
+rdriver$close()
